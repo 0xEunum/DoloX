@@ -1,0 +1,19 @@
+{
+  "name": "dolox",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "keeper",
+    "frontend"
+  ],
+  "scripts": {
+    "keeper:dev": "npm run dev --workspace=keeper",
+    "frontend:dev": "npm run dev --workspace=frontend",
+    "contracts:test": "npm run test --workspace=contracts",
+    "contracts:build": "npm run build --workspace=contracts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

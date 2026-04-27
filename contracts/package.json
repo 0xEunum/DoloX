@@ -1,0 +1,10 @@
+{
+  "name": "@dolox/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "deploy": "forge script script/Deploy.s.sol --broadcast"
+  }
+}
