@@ -3,11 +3,11 @@ pragma solidity ^0.8.24;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-/// @title AgentRegistry
-/// @notice DoloX wrapper around ERC-8004 identity registry.
-///         Registers agent smart accounts as verifiable onchain entities.
-///         ERC-8004 Identity Registry on Base Sepolia:
-///         0x8004A818BFB912233c491871b3d84c89A494BD9e
+/// @title  AgentRegistry
+/// @notice DoloX protocol-level agent identity registry.
+///         Tracks all Signal / Execution / Hybrid agents deployed through DoloX.
+///         ERC-8004 registration is handled separately by the deployer EOA —
+///         this contract is the source of truth for the DoloX A2A runtime loop.
 contract AgentRegistry is Ownable {
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
@@ -16,28 +16,38 @@ contract AgentRegistry is Ownable {
     error AgentNotRegistered(address account);
     error ZeroAddress();
     error EmptyENSName();
+    error UnauthorizedCaller(address caller);
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
     //////////////////////////////////////////////////////////////*/
-    event AgentRegistered(address indexed account, uint256 indexed agentId, string ensName, AgentType agentType);
+    event AgentRegistered(
+        address indexed account,
+        uint256 indexed agentId,
+        string ensName,
+        AgentType agentType,
+        address indexed registeredBy
+    );
     event AgentDeactivated(address indexed account, uint256 indexed agentId);
-    event AgentUpdated(address indexed account, string newEnsName);
+    event AgentReactivated(address indexed account, uint256 indexed agentId);
+    event AgentEnsUpdated(address indexed account, string newEnsName);
+    event AuthorizedCallerAdded(address indexed caller);
+    event AuthorizedCallerRemoved(address indexed caller);
 
     /*//////////////////////////////////////////////////////////////
                                 TYPES
     //////////////////////////////////////////////////////////////*/
     enum AgentType {
-        SIGNAL, // Provides price signals via x402
-        EXECUTION, // Executes swaps based on signals
-        HYBRID // Both signal + execution
+        SIGNAL,
+        EXECUTION,
+        HYBRID
     }
 
     struct Agent {
-        uint256 agentId; // ERC-8004 registry ID
-        address account; // DoloXAccount address (ERC-4337)
-        address owner; // Owner EOA
-        string ensName; // e.g., "signal.dolox.eth"
+        uint256 agentId;
+        address account; // DoloXAccount (ERC-4337 smart account)
+        address owner; // EOA that registered this agent
+        string ensName; // e.g. "signal-dolox.base.eth"
         AgentType agentType;
         bool active;
         uint256 registeredAt;
@@ -46,25 +56,15 @@ contract AgentRegistry is Ownable {
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
     //////////////////////////////////////////////////////////////*/
-
-    // ERC-8004 external registry (Base Sepolia deployed)
     address public immutable erc8004Registry;
-
     uint256 private _nextAgentId;
 
-    // account address => Agent
-    mapping(address => Agent) public agents;
+    mapping(address => Agent) public agents; // account → Agent
+    mapping(uint256 => address) public agentIdToAccount; // agentId → account
+    mapping(string => address) public ensNameToAccount; // ensName → account
+    mapping(address => address[]) public ownerAgents; // owner EOA → agent accounts
+    mapping(address => bool) public authorizedCallers;
 
-    // agentId => account address
-    mapping(uint256 => address) public agentIdToAccount;
-
-    // ensName => account address
-    mapping(string => address) public ensNameToAccount;
-
-    // owner => list of their agent accounts
-    mapping(address => address[]) public ownerAgents;
-
-    // total registered agents
     uint256 public totalAgents;
 
     /*//////////////////////////////////////////////////////////////
@@ -74,16 +74,28 @@ contract AgentRegistry is Ownable {
         if (_erc8004Registry == address(0)) revert ZeroAddress();
         erc8004Registry = _erc8004Registry;
         _nextAgentId = 1;
+        authorizedCallers[_owner] = true;
+        emit AuthorizedCallerAdded(_owner);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              MODIFIERS
+    //////////////////////////////////////////////////////////////*/
+    modifier onlyAuthorized() {
+        if (!authorizedCallers[msg.sender] && msg.sender != owner()) {
+            revert UnauthorizedCaller(msg.sender);
+        }
+        _;
     }
 
     /*//////////////////////////////////////////////////////////////
                            CORE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Register a DoloXAccount as an agent in the DoloX protocol
-    /// @param account The ERC-4337 smart account address (DoloXAccount)
-    /// @param ensName The ENS subname assigned to this agent (e.g. "signal.dolox.eth")
-    /// @param agentType SIGNAL, EXECUTION, or HYBRID
+    /// @notice Register a DoloX agent. Called by RegisterAgent.s.sol via authorized EOA.
+    /// @param  account   DoloXAccount smart account address
+    /// @param  ensName   Full Basename e.g. "signal-dolox.base.eth"
+    /// @param  agentType SIGNAL(0) | EXECUTION(1) | HYBRID(2)
     function registerAgent(address account, string calldata ensName, AgentType agentType)
         external
         returns (uint256 agentId)
@@ -110,34 +122,56 @@ contract AgentRegistry is Ownable {
         ownerAgents[msg.sender].push(account);
         totalAgents++;
 
-        // Interact with external ERC-8004 registry
-        _registerOnERC8004(account, agentId, ensName);
-
-        emit AgentRegistered(account, agentId, ensName, agentType);
+        emit AgentRegistered(account, agentId, ensName, agentType, msg.sender);
     }
 
-    /// @notice Deactivate an agent — owner only
+    /// @notice Deactivate an agent. Only the agent's owner EOA.
     function deactivateAgent(address account) external {
         Agent storage agent = agents[account];
         if (agent.registeredAt == 0) revert AgentNotRegistered(account);
-        if (agent.owner != msg.sender) revert AgentNotRegistered(account);
+        if (agent.owner != msg.sender) revert UnauthorizedCaller(msg.sender);
         agent.active = false;
         emit AgentDeactivated(account, agent.agentId);
     }
 
-    /// @notice Update ENS name for an agent — owner only
+    /// @notice Reactivate a deactivated agent. Only the agent's owner EOA.
+    function reactivateAgent(address account) external {
+        Agent storage agent = agents[account];
+        if (agent.registeredAt == 0) revert AgentNotRegistered(account);
+        if (agent.owner != msg.sender) revert UnauthorizedCaller(msg.sender);
+        agent.active = true;
+        emit AgentReactivated(account, agent.agentId);
+    }
+
+    /// @notice Update Basename of an agent. Only the agent's owner EOA.
     function updateEnsName(address account, string calldata newEnsName) external {
         Agent storage agent = agents[account];
         if (agent.registeredAt == 0) revert AgentNotRegistered(account);
-        if (agent.owner != msg.sender) revert AgentNotRegistered(account);
+        if (agent.owner != msg.sender) revert UnauthorizedCaller(msg.sender);
         if (bytes(newEnsName).length == 0) revert EmptyENSName();
+        if (ensNameToAccount[newEnsName] != address(0)) revert AgentAlreadyRegistered(ensNameToAccount[newEnsName]);
 
-        // Clear old ENS mapping
         delete ensNameToAccount[agent.ensName];
         ensNameToAccount[newEnsName] = account;
         agent.ensName = newEnsName;
+        emit AgentEnsUpdated(account, newEnsName);
+    }
 
-        emit AgentUpdated(account, newEnsName);
+    /*//////////////////////////////////////////////////////////////
+                          ACCESS CONTROL
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Authorize an EOA or script to call registerAgent.
+    ///         Called in Deploy.s.sol _wirePermissions to authorize deployer.
+    function addAuthorizedCaller(address caller) external onlyOwner {
+        if (caller == address(0)) revert ZeroAddress();
+        authorizedCallers[caller] = true;
+        emit AuthorizedCallerAdded(caller);
+    }
+
+    function removeAuthorizedCaller(address caller) external onlyOwner {
+        authorizedCallers[caller] = false;
+        emit AuthorizedCallerRemoved(caller);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -153,25 +187,23 @@ contract AgentRegistry is Ownable {
         return agents[account].registeredAt != 0 && agents[account].active;
     }
 
-    function getOwnerAgents(address owner) external view returns (address[] memory) {
-        return ownerAgents[owner];
+    function getOwnerAgents(address _owner) external view returns (address[] memory) {
+        return ownerAgents[_owner];
     }
 
     function resolveEnsToAccount(string calldata ensName) external view returns (address) {
         return ensNameToAccount[ensName];
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              INTERNAL
-    //////////////////////////////////////////////////////////////*/
+    function getAgentByEns(string calldata ensName) external view returns (Agent memory) {
+        address account = ensNameToAccount[ensName];
+        if (account == address(0)) revert AgentNotRegistered(address(0));
+        return agents[account];
+    }
 
-    /// @dev Calls ERC-8004 external registry to register agent identity
-    ///      Low-level call — if ERC-8004 registry reverts, we still proceed
-    ///      (graceful degradation for testnet availability)
-    function _registerOnERC8004(address account, uint256 agentId, string memory ensName) internal {
-        bytes memory callData = abi.encodeWithSignature("register(address,uint256,string)", account, agentId, ensName);
-        // Graceful — don't revert if ERC-8004 registry is unavailable on testnet
-        (bool success,) = erc8004Registry.call(callData);
-        (success); // suppress unused variable warning
+    function getAgentById(uint256 agentId) external view returns (Agent memory) {
+        address account = agentIdToAccount[agentId];
+        if (account == address(0)) revert AgentNotRegistered(address(0));
+        return agents[account];
     }
 }
