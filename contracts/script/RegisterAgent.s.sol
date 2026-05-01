@@ -2,32 +2,23 @@
 pragma solidity ^0.8.24;
 
 import {Script, console2} from "forge-std/Script.sol";
-import {HelperConfig} from "./HelperConfig.s.sol";
 import {DoloXAccountFactory} from "../src/core/DoloXAccountFactory.sol";
 import {AgentRegistry} from "../src/registry/AgentRegistry.sol";
 import {ReputationManager} from "../src/registry/ReputationManager.sol";
 import {SubnameIssuer} from "../src/ens/SubnameIssuer.sol";
-import {DoloXAccount} from "../src/core/DoloXAccount.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 
-contract RegisterAgent is Script {
+/*//////////////////////////////////////////////////////////////
+                        SHARED BASE
+//////////////////////////////////////////////////////////////*/
+
+/// @notice Shared deployment loader + registration logic
+///         Inherited by both RegisterSignalAgent and RegisterExecAgent
+abstract contract RegisterAgentBase is Script {
     using stdJson for string;
 
     /*//////////////////////////////////////////////////////////////
-                              AGENT CONFIG
-    //////////////////////////////////////////////////////////////*/
-    // Edit these before running for each agent
-    string constant SIGNAL_AGENT_NAME = "signal-dolox"; // -> signal-dolox.base.eth
-    string constant EXEC_AGENT_NAME = "exec-dolox"; // -> exec-dolox.base.eth
-
-    string constant SIGNAL_ENDPOINT = "http://localhost:3001/v1/price";
-    string constant EXEC_ENDPOINT = "http://localhost:3002/v1/status";
-
-    uint256 constant SIGNAL_AGENT_SALT = 1;
-    uint256 constant EXEC_AGENT_SALT = 2;
-
-    /*//////////////////////////////////////////////////////////////
-                              LOAD DEPLOYED
+                          LOAD DEPLOYED ADDRESSES
     //////////////////////////////////////////////////////////////*/
     function _loadDeployment()
         internal
@@ -49,76 +40,14 @@ contract RegisterAgent is Script {
     }
 
     /*//////////////////////////////////////////////////////////////
-                                  RUN
-    //////////////////////////////////////////////////////////////*/
-    function run() external {
-        (
-            DoloXAccountFactory factory,
-            AgentRegistry registry,
-            ReputationManager reputation,
-            SubnameIssuer subnameIssuer
-        ) = _loadDeployment();
-
-        address deployer = msg.sender;
-
-        vm.startBroadcast(deployer);
-
-        // ── Register Signal Agent ──────────────────────────────
-        console2.log("\n Registering Signal Agent");
-        (address signalAccount, uint256 signalId) = _registerAgent(
-            factory,
-            registry,
-            reputation,
-            subnameIssuer,
-            SIGNAL_AGENT_NAME,
-            SIGNAL_ENDPOINT,
-            AgentRegistry.AgentType.SIGNAL,
-            SIGNAL_AGENT_SALT,
-            deployer,
-            "true", // canSwap
-            "0" // maxSlippage (signal agent doesn't swap)
-        );
-
-        // ── Register Execution Agent ───────────────────────────
-        console2.log("\n Registering Execution Agent");
-        (address execAccount, uint256 execId) = _registerAgent(
-            factory,
-            registry,
-            reputation,
-            subnameIssuer,
-            EXEC_AGENT_NAME,
-            EXEC_ENDPOINT,
-            AgentRegistry.AgentType.EXECUTION,
-            EXEC_AGENT_SALT,
-            deployer,
-            "true", // canSwap
-            "0.5" // maxSlippage
-        );
-
-        vm.stopBroadcast();
-
-        // ── Log Results ────────────────────────────────────────
-        console2.log("\n======= Agents Registered =======");
-        console2.log("Signal Agent");
-        console2.log("  Account:   ", signalAccount);
-        console2.log("  Basename:  ", string(abi.encodePacked(SIGNAL_AGENT_NAME, ".base.eth")));
-        console2.log("  ERC-8004 ID:", signalId);
-        console2.log("Execution Agent");
-        console2.log("  Account:   ", execAccount);
-        console2.log("  Basename:  ", string(abi.encodePacked(EXEC_AGENT_NAME, ".base.eth")));
-        console2.log("  ERC-8004 ID:", execId);
-        console2.log("=================================\n");
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                         REGISTRATION FLOW
+                        CORE REGISTRATION FLOW
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Full agent registration:
-    ///         1. Deploy ERC-4337 smart account via factory
+    ///         1. Deploy ERC-4337 smart account via CREATE2 factory
     ///         2. Register on AgentRegistry (ERC-8004)
     ///         3. Register Basename + write capability text records
-    ///         4. Initialize reputation score
+    ///         4. Initialize reputation score (starts at 100)
     function _registerAgent(
         DoloXAccountFactory factory,
         AgentRegistry registry,
@@ -132,20 +61,19 @@ contract RegisterAgent is Script {
         string memory canSwap,
         string memory maxSlippage
     ) internal returns (address account, uint256 agentId) {
-        // Step 1: Deploy ERC-4337 smart account (or get existing)
+        // Step 1: Deploy ERC-4337 smart account (idempotent via CREATE2)
         account = address(factory.createAccount(deployer, salt));
-        console2.log("DoloXAccount deployed:", account);
+        console2.log("  DoloXAccount deployed:", account);
 
-        // Step 2: Register on AgentRegistry (writes to ERC-8004)
+        // Step 2: Register on AgentRegistry (writes ERC-8004 identity)
         string memory fullName = string(abi.encodePacked(name, ".base.eth"));
         agentId = registry.registerAgent(account, fullName, agentType);
-        console2.log("Registered on AgentRegistry - ERC-8004 ID:", agentId);
+        console2.log("  AgentRegistry ID:", agentId);
 
-        // Step 3: Get Basename registration price
+        // Step 3: Get Basename registration price + register
         uint256 price = subnameIssuer.getRegistrationPrice(name);
-        console2.log("Basename price (wei):", price);
+        console2.log("  Basename price (wei):", price);
 
-        // Step 4: Register Basename + write capability text records
         subnameIssuer.registerAgentName{value: price}(
             name,
             account,
@@ -159,16 +87,128 @@ contract RegisterAgent is Script {
                 agentType: _agentTypeToString(agentType)
             })
         );
-        console2.log("Basename registered:", fullName);
+        console2.log("  Basename registered:", fullName);
 
-        // Step 5: Initialize reputation score (starts at 100)
+        // Step 4: Initialize reputation (100 base score)
         reputation.initializeAgent(account);
-        console2.log("Reputation initialized - starting score: 100");
+        console2.log("  Reputation initialized: 100");
     }
 
     function _agentTypeToString(AgentRegistry.AgentType agentType) internal pure returns (string memory) {
         if (agentType == AgentRegistry.AgentType.SIGNAL) return "SIGNAL";
         if (agentType == AgentRegistry.AgentType.EXECUTION) return "EXECUTION";
         return "HYBRID";
+    }
+}
+
+/*//////////////////////////////////////////////////////////////
+                   CONTRACT 1: SIGNAL AGENT
+    forge script script/RegisterAgent.s.sol:RegisterSignalAgent \
+        --rpc-url base_sepolia --account <keystore> --broadcast
+//////////////////////////////////////////////////////////////*/
+contract RegisterSignalAgent is RegisterAgentBase {
+    string constant SIGNAL_NAME = "signal-dolox"; // → signal-dolox.base.eth
+    uint256 constant SIGNAL_SALT = 1;
+
+    function run() external {
+        (
+            DoloXAccountFactory factory,
+            AgentRegistry registry,
+            ReputationManager reputation,
+            SubnameIssuer subnameIssuer
+        ) = _loadDeployment();
+
+        // -- Read endpoint from env — no hardcoded URLs --------
+        string memory endpoint = vm.envString("SIGNAL_ENDPOINT");
+        string memory priceEndpoint = string(abi.encodePacked(endpoint, "/price"));
+
+        address deployer = msg.sender;
+
+        console2.log("\n-- Registering Signal Agent --");
+        console2.log("  Endpoint (from env):", priceEndpoint);
+
+        vm.startBroadcast(deployer);
+
+        (address account, uint256 agentId) = _registerAgent(
+            factory,
+            registry,
+            reputation,
+            subnameIssuer,
+            SIGNAL_NAME,
+            priceEndpoint,
+            AgentRegistry.AgentType.SIGNAL,
+            SIGNAL_SALT,
+            deployer,
+            "false", // canSwap: signal agent observes, doesn't swap
+            "0" // maxSlippage: not applicable
+        );
+
+        vm.stopBroadcast();
+
+        // -- Write to env hint ----------------------------------
+        console2.log("\n======= Signal Agent Registered =======");
+        console2.log("  Account:    ", account);
+        console2.log("  Basename:    signal-dolox.base.eth");
+        console2.log("  ERC-8004 ID:", agentId);
+        console2.log("  Endpoint:   ", priceEndpoint);
+        console2.log("  Add to .env:");
+        console2.log("    SIGNAL_AGENT_ACCOUNT=", account);
+        console2.log("=======================================\n");
+    }
+}
+
+/*//////////////////////////////////////////////////////////////
+                  CONTRACT 2: EXECUTION AGENT
+    forge script script/RegisterAgent.s.sol:RegisterExecAgent \
+        --rpc-url base_sepolia --account <keystore> --broadcast
+//////////////////////////////////////////////////////////////*/
+contract RegisterExecAgent is RegisterAgentBase {
+    string constant EXEC_NAME = "exec-dolox"; // → exec-dolox.base.eth
+    uint256 constant EXEC_SALT = 2;
+
+    function run() external {
+        (
+            DoloXAccountFactory factory,
+            AgentRegistry registry,
+            ReputationManager reputation,
+            SubnameIssuer subnameIssuer
+        ) = _loadDeployment();
+
+        // -- Read endpoint from env — no hardcoded URLs --------─
+        string memory endpoint = vm.envString("EXEC_ENDPOINT");
+        string memory statusEndpoint = string(abi.encodePacked(endpoint, "/status"));
+
+        address deployer = msg.sender;
+
+        console2.log("\n-- Registering Execution Agent --");
+        console2.log("  Endpoint (from env):", statusEndpoint);
+
+        vm.startBroadcast(deployer);
+
+        (address account, uint256 agentId) = _registerAgent(
+            factory,
+            registry,
+            reputation,
+            subnameIssuer,
+            EXEC_NAME,
+            statusEndpoint,
+            AgentRegistry.AgentType.EXECUTION,
+            EXEC_SALT,
+            deployer,
+            "true", // canSwap: execution agent swaps
+            "0.5" // maxSlippage: 0.5%
+        );
+
+        vm.stopBroadcast();
+
+        // -- Write to env hint ----------------------------------─
+        console2.log("\n======= Execution Agent Registered =======");
+        console2.log("  Account:    ", account);
+        console2.log("  Basename:    exec-dolox.base.eth");
+        console2.log("  ERC-8004 ID:", agentId);
+        console2.log("  Endpoint:   ", statusEndpoint);
+        console2.log("  Add to .env:");
+        console2.log("    EXEC_AGENT_ACCOUNT=", account);
+        console2.log("==========================================\n");
     }
 }
