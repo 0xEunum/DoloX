@@ -135,31 +135,33 @@ contract SubnameIssuer is Ownable {
         uint256 price = registrarController.rentPrice(name, REGISTRATION_DURATION);
         if (msg.value < price) revert InsufficientFunds(price, msg.value);
 
-        // Build text record calldata for capabilities
-        bytes[] memory records = _buildCapabilityRecords(capabilities);
+        // Compute namehash for this registered name
+        node = keccak256(abi.encodePacked(doloxBaseNode, keccak256(bytes(name))));
 
-        // Register via Basenames RegistrarController
-        // Agent's DoloXAccount becomes the owner of the basename
+        // Register with SubnameIssuer as ENS owner
         registrarController.register{value: price}(
             IBasenamesRegistrarController.RegisterRequest({
                 name: name,
-                owner: account,
+                owner: address(this),
                 duration: REGISTRATION_DURATION,
                 resolver: address(l2Resolver),
-                data: records,
-                reverseRecord: true
+                data: new bytes[](0),
+                reverseRecord: false
             })
         );
 
-        // Compute namehash for this registered name
-        node = keccak256(
-            abi.encodePacked(
-                keccak256(abi.encodePacked(bytes32(0), keccak256("eth"))),
-                keccak256(
-                    abi.encodePacked(keccak256(abi.encodePacked(bytes32(0), keccak256("base"))), keccak256(bytes(name)))
-                )
-            )
-        );
+        // SubnameIssuer is now the ENS owner -> authorized to call setText + setAddr
+        // Point addr() to agent's DoloXAccount (what viem resolves)
+        l2Resolver.setAddr(node, account);
+
+        // Write all 7 capability text records
+        l2Resolver.setText(node, "endpoint", capabilities.endpoint);
+        l2Resolver.setText(node, "erc8004Id", capabilities.erc8004Id);
+        l2Resolver.setText(node, "canSwap", capabilities.canSwap);
+        l2Resolver.setText(node, "maxSlippage", capabilities.maxSlippage);
+        l2Resolver.setText(node, "paymentToken", capabilities.paymentToken);
+        l2Resolver.setText(node, "pricePerCall", capabilities.pricePerCall);
+        l2Resolver.setText(node, "agentType", capabilities.agentType);
 
         issuedNames[name] = true;
         accountToNode[account] = node;
@@ -167,7 +169,6 @@ contract SubnameIssuer is Ownable {
 
         emit AgentNameRegistered(account, name, string(abi.encodePacked(name, ".base.eth")), node);
 
-        // Refund excess ETH
         if (msg.value > price) {
             (bool ok,) = payable(msg.sender).call{value: msg.value - price}("");
             (ok);
@@ -207,24 +208,6 @@ contract SubnameIssuer is Ownable {
 
     function getRegistrationPrice(string calldata name) external view returns (uint256) {
         return registrarController.rentPrice(name, REGISTRATION_DURATION);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                              INTERNAL
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev Encodes capability text records as resolver calldata
-    function _buildCapabilityRecords(AgentCapabilities calldata caps) internal pure returns (bytes[] memory records) {
-        records = new bytes[](9);
-        records[0] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "endpoint", caps.endpoint));
-        records[1] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "erc8004Id", caps.erc8004Id));
-        records[2] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "canSwap", caps.canSwap));
-        records[3] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "maxSlippage", caps.maxSlippage));
-        records[4] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "paymentToken", caps.paymentToken));
-        records[5] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "pricePerCall", caps.pricePerCall));
-        records[6] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "agentType", caps.agentType));
-        records[7] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "version", "1.0.0"));
-        records[8] = abi.encodeCall(IBasenamesL2Resolver.setText, (bytes32(0), "protocol", "dolox"));
     }
 
     receive() external payable {}
