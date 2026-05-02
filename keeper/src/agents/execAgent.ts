@@ -13,7 +13,7 @@ export interface ExecAgentConfig {
   tokenOut: string; // USDC
   poolFee: number; // 3000
   swapAmountIn: string; // "0.001" ETH per swap
-  signalAgentName: string; // "signal-dolox.base.eth"
+  signalAgentName: string; // "dolox-signal.base.eth"
   usdcAddress: string;
   pollIntervalMs: number; // 30000 (30 seconds)
 }
@@ -42,7 +42,7 @@ export class ExecAgent {
     this.running = true;
 
     console.log(`[ExecAgent] Live — account: ${this.config.agentAccount}`);
-    console.log(`[ExecAgent] Basename: exec-dolox.base.eth`);
+    console.log(`[ExecAgent] Basename: dolox-exec.base.eth`);
     console.log(
       `[ExecAgent] Polling every ${this.config.pollIntervalMs / 1000}s`,
     );
@@ -72,19 +72,19 @@ export class ExecAgent {
     console.log(`\n[ExecAgent] ── Tick #${++this.swapCount} ──`);
 
     // ── Step 1: Discover signal endpoint via Basenames ────────────
-    const endpoint = await this.resolver.discoverSignalEndpoint(
+    let endpoint = await this.resolver.discoverSignalEndpoint(
       this.config.signalAgentName,
     );
 
     if (!endpoint) {
-      console.log("[ExecAgent] Signal agent not found on Basenames — skipping");
-      return;
+      endpoint = `http://localhost:${process.env.SIGNAL_PORT ?? "3001"}/v1`;
+      console.log(`[ExecAgent] Basenames not resolved — fallback: ${endpoint}`);
     }
 
     console.log(`[ExecAgent] Resolved endpoint: ${endpoint}`);
 
     // ── Step 2: Call signal endpoint (x402 auto-handled) ──────────
-    const signalUrl = `${endpoint}/price`;
+    const signalUrl = endpoint;
     let signal: any;
 
     try {

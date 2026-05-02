@@ -15,7 +15,7 @@ export class SignalAgent {
     private port: number = 3001,
   ) {
     this.x402 = new X402Server(rpcUrl, agentAccount, usdcAddress);
-    this.oracle = new PriceOracle(rpcUrl, poolAddress);
+    this.oracle = new PriceOracle(rpcUrl, poolAddress, true);
 
     this.app.use(express.json());
     this._setupRoutes();
@@ -26,9 +26,9 @@ export class SignalAgent {
     this.app.get("/health", (_, res) => {
       res.json({
         status: "live",
-        agent: "signal-dolox",
+        agent: "dolox-signal",
         account: this.agentAccount,
-        basename: "signal-dolox.base.eth",
+        basename: "dolox-signal.base.eth",
       });
     });
 
@@ -50,7 +50,7 @@ export class SignalAgent {
             twapPrice: signal.twapPrice,
             confidence: signal.confidence,
             timestamp: signal.timestamp,
-            agent: "signal-dolox.base.eth",
+            agent: "dolox-signal.base.eth",
           });
         } catch (err) {
           console.error("[SignalAgent] Price fetch failed:", err);
@@ -68,7 +68,7 @@ export class SignalAgent {
   start() {
     this.app.listen(this.port, () => {
       console.log(`[SignalAgent] Live at http://localhost:${this.port}`);
-      console.log(`[SignalAgent] Basename: signal-dolox.base.eth`);
+      console.log(`[SignalAgent] Basename: dolox-signal.base.eth`);
       console.log(`[SignalAgent] Account:  ${this.agentAccount}`);
       console.log(`[SignalAgent] Price endpoint: POST /v1/price (x402 gated)`);
     });
