@@ -24,6 +24,8 @@ async function main() {
     requireEnv("SIGNAL_AGENT_ACCOUNT"),
     usdcAddress,
     poolAddress,
+    requireEnv("REPUTATION_MANAGER"),
+    requireEnv("SIGNAL_AGENT_OWNER_PRIVATE_KEY"),
     parseInt(process.env.SIGNAL_PORT ?? "3001"),
   );
 
