@@ -107,7 +107,7 @@ abstract contract RegisterAgentBase is Script {
         --rpc-url base_sepolia --account <keystore> --broadcast
 //////////////////////////////////////////////////////////////*/
 contract RegisterSignalAgent is RegisterAgentBase {
-    string constant SIGNAL_NAME = "signal-dolox"; // → signal-dolox.base.eth
+    string constant SIGNAL_NAME = "dolox-signal"; // → dolox-signal.base.eth
     uint256 constant SIGNAL_SALT = 1;
 
     function run() external {
@@ -148,7 +148,7 @@ contract RegisterSignalAgent is RegisterAgentBase {
         // -- Write to env hint ----------------------------------
         console2.log("\n======= Signal Agent Registered =======");
         console2.log("  Account:    ", account);
-        console2.log("  Basename:    signal-dolox.base.eth");
+        console2.log("  Basename:    dolox-signal.base.eth");
         console2.log("  ERC-8004 ID:", agentId);
         console2.log("  Endpoint:   ", priceEndpoint);
         console2.log("  Add to .env:");
@@ -163,7 +163,7 @@ contract RegisterSignalAgent is RegisterAgentBase {
         --rpc-url base_sepolia --account <keystore> --broadcast
 //////////////////////////////////////////////////////////////*/
 contract RegisterExecAgent is RegisterAgentBase {
-    string constant EXEC_NAME = "exec-dolox"; // → exec-dolox.base.eth
+    string constant EXEC_NAME = "dolox-exec"; // → dolox-exec.base.eth
     uint256 constant EXEC_SALT = 2;
 
     function run() external {
@@ -204,7 +204,7 @@ contract RegisterExecAgent is RegisterAgentBase {
         // -- Write to env hint ----------------------------------─
         console2.log("\n======= Execution Agent Registered =======");
         console2.log("  Account:    ", account);
-        console2.log("  Basename:    exec-dolox.base.eth");
+        console2.log("  Basename:    dolox-exec.base.eth");
         console2.log("  ERC-8004 ID:", agentId);
         console2.log("  Endpoint:   ", statusEndpoint);
         console2.log("  Add to .env:");

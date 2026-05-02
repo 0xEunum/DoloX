@@ -129,7 +129,7 @@ contract Deploy is Script {
         // dolox.base.eth namehash — precomputed
         // namehash("base.eth") = 0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72e7f479de07fd7470ad7b3f
         // This is used as parent node for *.base.eth registrations
-        bytes32 doloxBaseNode = 0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72e7f479de07fd7470ad7b3f;
+        bytes32 doloxBaseNode = 0x646204f07e7fcd394a508306bf1148a1e13d14287fa33839bf9ad63755f547c6;
 
         subnameIssuer = new SubnameIssuer(config.basenamesController, config.basenamesResolver, doloxBaseNode, deployer);
         console2.log("SubnameIssuer:", address(subnameIssuer));
