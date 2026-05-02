@@ -25,7 +25,7 @@ contract AgentRegistryTest is Test {
 
     function test_registerAgent_success() public {
         vm.prank(owner);
-        uint256 id = registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        uint256 id = registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         assertEq(id, 1);
         assertEq(registry.totalAgents(), 1);
@@ -34,10 +34,10 @@ contract AgentRegistryTest is Test {
 
     function test_registerAgent_incrementsId() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
-        uint256 id2 = registry.registerAgent(agent2, "exec-dolox.base.eth", AgentRegistry.AgentType.EXECUTION);
+        uint256 id2 = registry.registerAgent(agent2, "dolox-exec.base.eth", AgentRegistry.AgentType.EXECUTION);
 
         assertEq(id2, 2);
         assertEq(registry.totalAgents(), 2);
@@ -45,32 +45,32 @@ contract AgentRegistryTest is Test {
 
     function test_registerAgent_storesCorrectData() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         AgentRegistry.Agent memory a = registry.getAgent(agent1);
         assertEq(a.account, agent1);
         assertEq(a.owner, owner);
-        assertEq(a.ensName, "signal-dolox.base.eth");
+        assertEq(a.ensName, "dolox-signal.base.eth");
         assertTrue(a.active);
         assertEq(uint8(a.agentType), uint8(AgentRegistry.AgentType.SIGNAL));
     }
 
     function test_registerAgent_revertDuplicate() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(AgentRegistry.AgentAlreadyRegistered.selector, agent1));
-        registry.registerAgent(agent1, "signal-dolox-2.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal-2.base.eth", AgentRegistry.AgentType.SIGNAL);
     }
 
     function test_registerAgent_revertDuplicateEnsName() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
         vm.expectRevert();
-        registry.registerAgent(agent2, "signal-dolox.base.eth", AgentRegistry.AgentType.EXECUTION);
+        registry.registerAgent(agent2, "dolox-signal.base.eth", AgentRegistry.AgentType.EXECUTION);
     }
 
     function test_registerAgent_revertZeroAddress() public {
@@ -91,7 +91,7 @@ contract AgentRegistryTest is Test {
 
     function test_deactivateAgent() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
         registry.deactivateAgent(agent1);
@@ -101,7 +101,7 @@ contract AgentRegistryTest is Test {
 
     function test_deactivateAgent_revertNotOwner() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(stranger);
         vm.expectRevert();
@@ -120,7 +120,7 @@ contract AgentRegistryTest is Test {
 
     function test_updateEnsName() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
         registry.updateEnsName(agent1, "signal-v2.base.eth");
@@ -131,13 +131,13 @@ contract AgentRegistryTest is Test {
 
     function test_updateEnsName_clearsOldMapping() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(owner);
         registry.updateEnsName(agent1, "signal-v2.base.eth");
 
         // Old name should resolve to zero
-        assertEq(registry.ensNameToAccount("signal-dolox.base.eth"), address(0));
+        assertEq(registry.ensNameToAccount("dolox-signal.base.eth"), address(0));
         // New name should resolve to agent1
         assertEq(registry.ensNameToAccount("signal-v2.base.eth"), agent1);
     }
@@ -148,9 +148,9 @@ contract AgentRegistryTest is Test {
 
     function test_getOwnerAgents() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
         vm.prank(owner);
-        registry.registerAgent(agent2, "exec-dolox.base.eth", AgentRegistry.AgentType.EXECUTION);
+        registry.registerAgent(agent2, "dolox-exec.base.eth", AgentRegistry.AgentType.EXECUTION);
 
         address[] memory agents = registry.getOwnerAgents(owner);
         assertEq(agents.length, 2);
@@ -160,9 +160,9 @@ contract AgentRegistryTest is Test {
 
     function test_resolveEnsToAccount() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
-        assertEq(registry.resolveEnsToAccount("signal-dolox.base.eth"), agent1);
+        assertEq(registry.resolveEnsToAccount("dolox-signal.base.eth"), agent1);
     }
 
     function test_getAgent_revertNotRegistered() public {
@@ -172,7 +172,7 @@ contract AgentRegistryTest is Test {
 
     function test_agentIdToAccount() public {
         vm.prank(owner);
-        registry.registerAgent(agent1, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent1, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         assertEq(registry.agentIdToAccount(1), agent1);
     }

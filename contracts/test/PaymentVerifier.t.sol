@@ -44,10 +44,10 @@ contract PaymentVerifierTest is Test {
 
         // Register both agents — execAgent owned by payerOwner
         vm.prank(payerOwner);
-        registry.registerAgent(execAgent, "exec-dolox.base.eth", AgentRegistry.AgentType.EXECUTION);
+        registry.registerAgent(execAgent, "dolox-exec.base.eth", AgentRegistry.AgentType.EXECUTION);
 
         vm.prank(owner);
-        registry.registerAgent(signalAgent, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(signalAgent, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         // Initialize reputation for signalAgent
         vm.prank(owner);

@@ -86,7 +86,7 @@ contract AgentFlowTest is Test {
         factory.createAccount(signalOwner, 1);
 
         vm.prank(signalOwner);
-        registry.registerAgent(signalAddr, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(signalAddr, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         vm.prank(protocolOwner);
         reputation.initializeAgent(signalAddr);
@@ -98,7 +98,7 @@ contract AgentFlowTest is Test {
         factory.createAccount(execOwner, 2);
 
         vm.prank(execOwner);
-        registry.registerAgent(execAddr, "exec-dolox.base.eth", AgentRegistry.AgentType.EXECUTION);
+        registry.registerAgent(execAddr, "dolox-exec.base.eth", AgentRegistry.AgentType.EXECUTION);
 
         vm.prank(protocolOwner);
         reputation.initializeAgent(execAddr);
@@ -127,8 +127,8 @@ contract AgentFlowTest is Test {
         AgentRegistry.Agent memory signal = registry.getAgent(address(signalAccount));
         AgentRegistry.Agent memory exec = registry.getAgent(address(execAccount));
 
-        assertEq(signal.ensName, "signal-dolox.base.eth");
-        assertEq(exec.ensName, "exec-dolox.base.eth");
+        assertEq(signal.ensName, "dolox-signal.base.eth");
+        assertEq(exec.ensName, "dolox-exec.base.eth");
         assertEq(signal.agentId, 1);
         assertEq(exec.agentId, 2);
         assertEq(signal.owner, signalOwner);
@@ -301,7 +301,7 @@ contract AgentFlowTest is Test {
         // ── Step 2: ExecAgent resolves SignalAgent via ENS ────
         // (simulated - in production this is a viem call)
         string memory resolvedName = registry.getAgent(address(signalAccount)).ensName;
-        assertEq(resolvedName, "signal-dolox.base.eth");
+        assertEq(resolvedName, "dolox-signal.base.eth");
         console2.log("SignalAgent resolved:", resolvedName);
 
         // ── Step 3: ExecAgent pays SignalAgent via x402 ───────

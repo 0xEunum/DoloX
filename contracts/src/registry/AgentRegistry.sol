@@ -17,6 +17,7 @@ contract AgentRegistry is Ownable {
     error ZeroAddress();
     error EmptyENSName();
     error UnauthorizedCaller(address caller);
+    error NotAgentOwner(address caller);
 
     /*//////////////////////////////////////////////////////////////
                                 EVENTS
@@ -33,6 +34,7 @@ contract AgentRegistry is Ownable {
     event AgentEnsUpdated(address indexed account, string newEnsName);
     event AuthorizedCallerAdded(address indexed caller);
     event AuthorizedCallerRemoved(address indexed caller);
+    event AgentDeregistered(address indexed account, uint256 indexed agentId, address indexed removedBy);
 
     /*//////////////////////////////////////////////////////////////
                                 TYPES
@@ -47,7 +49,7 @@ contract AgentRegistry is Ownable {
         uint256 agentId;
         address account; // DoloXAccount (ERC-4337 smart account)
         address owner; // EOA that registered this agent
-        string ensName; // e.g. "signal-dolox.base.eth"
+        string ensName; // e.g. "dolox-signal.base.eth"
         AgentType agentType;
         bool active;
         uint256 registeredAt;
@@ -94,7 +96,7 @@ contract AgentRegistry is Ownable {
 
     /// @notice Register a DoloX agent. Called by RegisterAgent.s.sol via authorized EOA.
     /// @param  account   DoloXAccount smart account address
-    /// @param  ensName   Full Basename e.g. "signal-dolox.base.eth"
+    /// @param  ensName   Full Basename e.g. "dolox-signal.base.eth"
     /// @param  agentType SIGNAL(0) | EXECUTION(1) | HYBRID(2)
     function registerAgent(address account, string calldata ensName, AgentType agentType)
         external
@@ -123,6 +125,38 @@ contract AgentRegistry is Ownable {
         totalAgents++;
 
         emit AgentRegistered(account, agentId, ensName, agentType, msg.sender);
+    }
+
+    /// @notice Fully deregister an agent — clears all mappings.
+    ///         Only callable by the agent's owner EOA or the contract owner.
+    /// @param  account  DoloXAccount smart account address to remove
+    function deregisterAgent(address account) external {
+        Agent storage agent = agents[account];
+        if (agent.registeredAt == 0) revert AgentNotRegistered(account);
+        if (agent.owner != msg.sender && msg.sender != owner()) revert UnauthorizedCaller(msg.sender);
+
+        uint256 agentId = agent.agentId;
+        string memory ensName = agent.ensName;
+        address agentOwner = agent.owner;
+
+        // Remove from ownerAgents array
+        address[] storage ownerList = ownerAgents[agentOwner];
+        for (uint256 i = 0; i < ownerList.length; i++) {
+            if (ownerList[i] == account) {
+                ownerList[i] = ownerList[ownerList.length - 1]; // swap with last
+                ownerList.pop();
+                break;
+            }
+        }
+
+        // Clear all mappings
+        delete agentIdToAccount[agentId];
+        delete ensNameToAccount[ensName];
+        delete agents[account];
+
+        totalAgents--;
+
+        emit AgentDeregistered(account, agentId, msg.sender);
     }
 
     /// @notice Deactivate an agent. Only the agent's owner EOA.

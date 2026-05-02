@@ -83,7 +83,7 @@ contract SubnameIssuer is Ownable {
     // account => basename node
     mapping(address => bytes32) public accountToNode;
 
-    // account => full name e.g., "signal-dolox.base.eth"
+    // account => full name e.g., "dolox-signal.base.eth"
     mapping(address => string) public accountToName;
 
     // authorized callers (AgentRegistry)
@@ -118,7 +118,7 @@ contract SubnameIssuer is Ownable {
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Register a *.base.eth name for a DoloX agent
-    /// @param name e.g., "signal-dolox" → signal-dolox.base.eth
+    /// @param name e.g., "dolox-signal" → dolox-signal.base.eth
     /// @param account The DoloXAccount address
     /// @param capabilities Agent capability manifest written as text records
     function registerAgentName(string calldata name, address account, AgentCapabilities calldata capabilities)

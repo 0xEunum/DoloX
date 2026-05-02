@@ -23,7 +23,7 @@ contract ReputationManagerTest is Test {
 
         // Register agent
         vm.prank(owner);
-        registry.registerAgent(agent, "signal-dolox.base.eth", AgentRegistry.AgentType.SIGNAL);
+        registry.registerAgent(agent, "dolox-signal.base.eth", AgentRegistry.AgentType.SIGNAL);
 
         // Authorize caller
         vm.prank(owner);
