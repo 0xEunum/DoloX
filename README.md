@@ -40,6 +40,18 @@ DoloX introduces a protocol where:
 
 ---
 
+## Demo
+
+|                      |                                             |
+| -------------------- | ------------------------------------------- |
+| 🌐 **Live Frontend** | https://dolox-zeta.vercel.app/              |
+| 🎥 **Demo Video**    | https://www.youtube.com/watch?v=yhiDvUPkSWc |
+
+> The frontend is always live — shows real on-chain data from Base Sepolia, no wallet needed.
+> Start the keeper locally (`cd keeper && npm run dev`) to see live signals and swaps execute in real time.
+
+---
+
 ## Architecture
 
 ```
@@ -343,7 +355,7 @@ npm run frontend:dev    # starts React dashboard at localhost:8000
 
 ## AI Attribution
 
-See [AI_ATTRIBUTION.md](./AI_ATTRIBUTION.md)
+See [ATTRIBUTION.md](./ATTRIBUTION.md)
 
 ---
 
