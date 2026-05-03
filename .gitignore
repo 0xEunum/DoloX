@@ -6,8 +6,7 @@ contracts/broadcast/
 contracts/lib/
 contracts/.DS_Store
 
-contracts/deployments/*.json
-!contracts/deployments/.gitkeep
+contracts/deployments/31337.json
 
 frontend/dist/
 frontend/.vite/
